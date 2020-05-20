@@ -21,17 +21,10 @@
 # Please cite "4D Spatio-Temporal ConvNets: Minkowski Convolutional Neural
 # Networks", CVPR'19 (https://arxiv.org/abs/1904.08755) if you use any part
 # of the code.
-import torch
-import torch.nn as nn
-from torch.optim import SGD
 
 import MinkowskiEngine as ME
-
 from MinkowskiEngine.modules.resnet_block import BasicBlock, Bottleneck
-
-from tests.common import data_loader
-from examples.resnet import ResNetBase
-
+from MinkowskiEngine.modules.resnet import ResNetBase
 
 class MinkUNetBase(ResNetBase):
     BLOCK = None
@@ -44,7 +37,8 @@ class MinkUNetBase(ResNetBase):
     # To use the model, must call initialize_coords before forward pass.
     # Once data is processed, call clear to reset the model before calling
     # initialize_coords
-    def __init__(self, in_channels, out_channels, D=3):
+    def __init__(self, in_channels, out_channels, leakiness=0, D=3):
+        self.leakiness = leakiness
         ResNetBase.__init__(self, in_channels, out_channels, D)
 
     def network_initialization(self, in_channels, out_channels, D):
@@ -60,27 +54,27 @@ class MinkUNetBase(ResNetBase):
         self.bn1 = ME.MinkowskiBatchNorm(self.inplanes)
 
         self.block1 = self._make_layer(self.BLOCK, self.PLANES[0],
-                                       self.LAYERS[0])
+                                       self.LAYERS[0], leakiness=self.leakiness)
 
         self.conv2p2s2 = ME.MinkowskiConvolution(
             self.inplanes, self.inplanes, kernel_size=2, stride=2, dimension=D)
         self.bn2 = ME.MinkowskiBatchNorm(self.inplanes)
 
         self.block2 = self._make_layer(self.BLOCK, self.PLANES[1],
-                                       self.LAYERS[1])
+                                       self.LAYERS[1], leakiness=self.leakiness)
 
         self.conv3p4s2 = ME.MinkowskiConvolution(
             self.inplanes, self.inplanes, kernel_size=2, stride=2, dimension=D)
 
         self.bn3 = ME.MinkowskiBatchNorm(self.inplanes)
         self.block3 = self._make_layer(self.BLOCK, self.PLANES[2],
-                                       self.LAYERS[2])
+                                       self.LAYERS[2], leakiness=self.leakiness)
 
         self.conv4p8s2 = ME.MinkowskiConvolution(
             self.inplanes, self.inplanes, kernel_size=2, stride=2, dimension=D)
         self.bn4 = ME.MinkowskiBatchNorm(self.inplanes)
         self.block4 = self._make_layer(self.BLOCK, self.PLANES[3],
-                                       self.LAYERS[3])
+                                       self.LAYERS[3], leakiness=self.leakiness)
 
         self.convtr4p16s2 = ME.MinkowskiConvolutionTranspose(
             self.inplanes, self.PLANES[4], kernel_size=2, stride=2, dimension=D)
@@ -88,28 +82,28 @@ class MinkUNetBase(ResNetBase):
 
         self.inplanes = self.PLANES[4] + self.PLANES[2] * self.BLOCK.expansion
         self.block5 = self._make_layer(self.BLOCK, self.PLANES[4],
-                                       self.LAYERS[4])
+                                       self.LAYERS[4], leakiness=self.leakiness)
         self.convtr5p8s2 = ME.MinkowskiConvolutionTranspose(
             self.inplanes, self.PLANES[5], kernel_size=2, stride=2, dimension=D)
         self.bntr5 = ME.MinkowskiBatchNorm(self.PLANES[5])
 
         self.inplanes = self.PLANES[5] + self.PLANES[1] * self.BLOCK.expansion
         self.block6 = self._make_layer(self.BLOCK, self.PLANES[5],
-                                       self.LAYERS[5])
+                                       self.LAYERS[5], leakiness=self.leakiness)
         self.convtr6p4s2 = ME.MinkowskiConvolutionTranspose(
             self.inplanes, self.PLANES[6], kernel_size=2, stride=2, dimension=D)
         self.bntr6 = ME.MinkowskiBatchNorm(self.PLANES[6])
 
         self.inplanes = self.PLANES[6] + self.PLANES[0] * self.BLOCK.expansion
         self.block7 = self._make_layer(self.BLOCK, self.PLANES[6],
-                                       self.LAYERS[6])
+                                       self.LAYERS[6], leakiness=self.leakiness)
         self.convtr7p2s2 = ME.MinkowskiConvolutionTranspose(
             self.inplanes, self.PLANES[7], kernel_size=2, stride=2, dimension=D)
         self.bntr7 = ME.MinkowskiBatchNorm(self.PLANES[7])
 
         self.inplanes = self.PLANES[7] + self.INIT_DIM
         self.block8 = self._make_layer(self.BLOCK, self.PLANES[7],
-                                       self.LAYERS[7])
+                                       self.LAYERS[7], leakiness=self.leakiness)
 
         self.final = ME.MinkowskiConvolution(
             self.PLANES[7],
@@ -117,7 +111,7 @@ class MinkUNetBase(ResNetBase):
             kernel_size=1,
             has_bias=True,
             dimension=D)
-        self.relu = ME.MinkowskiReLU(inplace=True)
+        self.relu = ME.MinkowskiLeakyReLU(leakiness=self.leakiness, inplace=True)
 
     def forward(self, x):
         out = self.conv0p1s1(x)
@@ -127,22 +121,26 @@ class MinkUNetBase(ResNetBase):
         out = self.conv1p1s2(out_p1)
         out = self.bn1(out)
         out = self.relu(out)
+        out = self.dropout(out)
         out_b1p2 = self.block1(out)
 
         out = self.conv2p2s2(out_b1p2)
         out = self.bn2(out)
         out = self.relu(out)
+        out = self.dropout(out)
         out_b2p4 = self.block2(out)
 
         out = self.conv3p4s2(out_b2p4)
         out = self.bn3(out)
         out = self.relu(out)
+        out = self.dropout(out)
         out_b3p8 = self.block3(out)
 
         # tensor_stride=16
         out = self.conv4p8s2(out_b3p8)
         out = self.bn4(out)
         out = self.relu(out)
+        out = self.dropout(out)
         out = self.block4(out)
 
         # tensor_stride=8
@@ -151,6 +149,7 @@ class MinkUNetBase(ResNetBase):
         out = self.relu(out)
 
         out = ME.cat(out, out_b3p8)
+        out = self.droupout(out)
         out = self.block5(out)
 
         # tensor_stride=4
@@ -159,6 +158,7 @@ class MinkUNetBase(ResNetBase):
         out = self.relu(out)
 
         out = ME.cat(out, out_b2p4)
+        out = self.droupout(out)
         out = self.block6(out)
 
         # tensor_stride=2
@@ -167,6 +167,7 @@ class MinkUNetBase(ResNetBase):
         out = self.relu(out)
 
         out = ME.cat(out, out_b1p2)
+        out = self.droupout(out)
         out = self.block7(out)
 
         # tensor_stride=1
@@ -175,6 +176,7 @@ class MinkUNetBase(ResNetBase):
         out = self.relu(out)
 
         out = ME.cat(out, out_p1)
+        out = self.droupout(out)
         out = self.block8(out)
 
         return self.final(out)
@@ -243,39 +245,3 @@ class MinkUNet34B(MinkUNet34):
 
 class MinkUNet34C(MinkUNet34):
     PLANES = (32, 64, 128, 256, 256, 128, 96, 96)
-
-
-if __name__ == '__main__':
-    # loss and network
-    criterion = nn.CrossEntropyLoss()
-    net = MinkUNet14A(in_channels=3, out_channels=5, D=2)
-    print(net)
-
-    # a data loader must return a tuple of coords, features, and labels.
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    net = net.to(device)
-    optimizer = SGD(net.parameters(), lr=1e-2)
-
-    for i in range(10):
-        optimizer.zero_grad()
-
-        # Get new data
-        coords, feat, label = data_loader(is_classification=False)
-        input = ME.SparseTensor(feat, coords=coords).to(device)
-        label = label.to(device)
-
-        # Forward
-        output = net(input)
-
-        # Loss
-        loss = criterion(output.F, label)
-        print('Iteration: ', i, ', Loss: ', loss.item())
-
-        # Gradient
-        loss.backward()
-        optimizer.step()
-
-    # Saving and loading a network
-    torch.save(net.state_dict(), 'test.pth')
-    net.load_state_dict(torch.load('test.pth'))

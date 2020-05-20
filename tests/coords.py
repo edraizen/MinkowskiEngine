@@ -26,7 +26,8 @@ import unittest
 import torch
 import numpy as np
 
-from MinkowskiEngine import CoordsKey, CoordsManager
+import MinkowskiEngine as ME
+from MinkowskiEngine import CoordsKey, CoordsManager, MemoryManagerBackend
 
 from tests.common import data_loader
 
@@ -166,6 +167,16 @@ class Test(unittest.TestCase):
         cm.create_coords_key(coords)
 
         self.assertTrue(cm.get_batch_size() == 2)
+
+    def test_memory_manager_backend(self):
+        # Set the global GPU memory manager backend. By default PYTORCH.
+        ME.set_memory_manager_backend(MemoryManagerBackend.PYTORCH)
+        ME.set_memory_manager_backend(MemoryManagerBackend.CUDA)
+
+        # Create a coords man with the specified GPU memory manager backend.
+        # No effect with CPU_ONLY build
+        cm = CoordsManager(memory_manager_backend=MemoryManagerBackend.CUDA, D=2)
+        cm = CoordsManager(memory_manager_backend=MemoryManagerBackend.PYTORCH, D=2)
 
 
 if __name__ == '__main__':

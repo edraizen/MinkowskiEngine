@@ -37,7 +37,7 @@ class ResNetBase(nn.Module):
     INIT_DIM = 64
     PLANES = (64, 128, 256, 512)
 
-    def __init__(self, in_channels, out_channels, D=3):
+    def __init__(self, in_channels, out_channels, leakiness=0, D=3):
         nn.Module.__init__(self)
         self.D = D
         assert self.BLOCK is not None
@@ -88,7 +88,8 @@ class ResNetBase(nn.Module):
                     blocks,
                     stride=1,
                     dilation=1,
-                    bn_momentum=0.1):
+                    bn_momentum=0.1,
+                    leakiness=0):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
@@ -107,6 +108,7 @@ class ResNetBase(nn.Module):
                 stride=stride,
                 dilation=dilation,
                 downsample=downsample,
+                leakiness=leakiness,
                 dimension=self.D))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
@@ -116,6 +118,7 @@ class ResNetBase(nn.Module):
                     planes,
                     stride=1,
                     dilation=dilation,
+                    leakiness=leakiness,
                     dimension=self.D))
 
         return nn.Sequential(*layers)
@@ -162,39 +165,4 @@ class ResNet50(ResNetBase):
 class ResNet101(ResNetBase):
     BLOCK = Bottleneck
     LAYERS = (3, 4, 23, 3)
-
-
-if __name__ == '__main__':
-    # loss and network
-    criterion = nn.CrossEntropyLoss()
-    net = ResNet14(in_channels=3, out_channels=5, D=2)
-    print(net)
-
-    # a data loader must return a tuple of coords, features, and labels.
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    net = net.to(device)
-    optimizer = SGD(net.parameters(), lr=1e-2)
-
-    for i in range(10):
-        optimizer.zero_grad()
-
-        # Get new data
-        coords, feat, label = data_loader()
-        input = ME.SparseTensor(feat, coords=coords).to(device)
-        label = label.to(device)
-
-        # Forward
-        output = net(input)
-
-        # Loss
-        loss = criterion(output.F, label)
-        print('Iteration: ', i, ', Loss: ', loss.item())
-
-        # Gradient
-        loss.backward()
-        optimizer.step()
-
-    # Saving and loading a network
-    torch.save(net.state_dict(), 'test.pth')
-    net.load_state_dict(torch.load('test.pth'))
+    
