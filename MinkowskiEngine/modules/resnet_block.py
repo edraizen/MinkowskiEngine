@@ -36,6 +36,7 @@ class BasicBlock(nn.Module):
                  dilation=1,
                  downsample=None,
                  bn_momentum=0.1,
+                 leakiness=0,
                  dimension=-1):
         super(BasicBlock, self).__init__()
         assert dimension > 0
@@ -46,7 +47,7 @@ class BasicBlock(nn.Module):
         self.conv2 = ME.MinkowskiConvolution(
             planes, planes, kernel_size=3, stride=1, dilation=dilation, dimension=dimension)
         self.norm2 = ME.MinkowskiBatchNorm(planes, momentum=bn_momentum)
-        self.relu = ME.MinkowskiReLU(inplace=True)
+        self.relu = ME.MinkowskiLeakyReLU(leakiness=leakiness, inplace=True)
         self.downsample = downsample
 
     def forward(self, x):
@@ -78,6 +79,7 @@ class Bottleneck(nn.Module):
                  dilation=1,
                  downsample=None,
                  bn_momentum=0.1,
+                 leakiness=0,
                  dimension=-1):
         super(Bottleneck, self).__init__()
         assert dimension > 0
@@ -95,7 +97,7 @@ class Bottleneck(nn.Module):
         self.norm3 = ME.MinkowskiBatchNorm(
             planes * self.expansion, momentum=bn_momentum)
 
-        self.relu = ME.MinkowskiReLU(inplace=True)
+        self.relu = ME.MinkowskiReLU(leakiness=leakiness, inplace=True)
         self.downsample = downsample
 
     def forward(self, x):

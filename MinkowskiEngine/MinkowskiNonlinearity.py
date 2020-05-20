@@ -51,7 +51,10 @@ class MinkowskiReLU(MinkowskiModuleBase):
 
 class MinkowskiPReLU(MinkowskiModuleBase):
     MODULE = torch.nn.PReLU
+    
 
+class MinkowskiLeakyReLU(MinkowskiModuleBase):
+    MODULE = torch.nn.LeakyReLU
 
 class MinkowskiELU(MinkowskiModuleBase):
     MODULE = torch.nn.ELU
