@@ -278,7 +278,7 @@ class MinkowskiConvolutionBase(MinkowskiModuleBase):
                                  self.stride, self.kernel_size, self.dilation,
                                  self.region_type_, self.region_offset_,
                                  input.coords_key, out_coords_key,
-                                 input.coords_man)=
+                                 input.coords_man)
         if self.has_bias:
             outfeat += self.bias
 

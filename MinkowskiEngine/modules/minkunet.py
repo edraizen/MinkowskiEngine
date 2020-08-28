@@ -37,8 +37,10 @@ class MinkUNetBase(ResNetBase):
     # To use the model, must call initialize_coords before forward pass.
     # Once data is processed, call clear to reset the model before calling
     # initialize_coords
-    def __init__(self, in_channels, out_channels, leakiness=0, D=3):
+    def __init__(self, in_channels, out_channels, leakiness=0, dropout_p=0, skipconnections=True, D=3):
         self.leakiness = leakiness
+        self.dropout_p = dropout_p
+        self.skipconnections = skipconnections
         ResNetBase.__init__(self, in_channels, out_channels, D)
 
     def network_initialization(self, in_channels, out_channels, D):
@@ -80,28 +82,36 @@ class MinkUNetBase(ResNetBase):
             self.inplanes, self.PLANES[4], kernel_size=2, stride=2, dimension=D)
         self.bntr4 = ME.MinkowskiBatchNorm(self.PLANES[4])
 
-        self.inplanes = self.PLANES[4] + self.PLANES[2] * self.BLOCK.expansion
+        self.inplanes = self.PLANES[4] 
+        if self.skipconnections:
+            self.inplanes += self.PLANES[2] * self.BLOCK.expansion
         self.block5 = self._make_layer(self.BLOCK, self.PLANES[4],
                                        self.LAYERS[4], leakiness=self.leakiness)
         self.convtr5p8s2 = ME.MinkowskiConvolutionTranspose(
             self.inplanes, self.PLANES[5], kernel_size=2, stride=2, dimension=D)
         self.bntr5 = ME.MinkowskiBatchNorm(self.PLANES[5])
 
-        self.inplanes = self.PLANES[5] + self.PLANES[1] * self.BLOCK.expansion
+        self.inplanes = self.PLANES[5] #+ self.PLANES[1] * self.BLOCK.expansion
+        if self.skipconnections:
+            self.inplanes += self.PLANES[1] * self.BLOCK.expansion
         self.block6 = self._make_layer(self.BLOCK, self.PLANES[5],
                                        self.LAYERS[5], leakiness=self.leakiness)
         self.convtr6p4s2 = ME.MinkowskiConvolutionTranspose(
             self.inplanes, self.PLANES[6], kernel_size=2, stride=2, dimension=D)
         self.bntr6 = ME.MinkowskiBatchNorm(self.PLANES[6])
 
-        self.inplanes = self.PLANES[6] + self.PLANES[0] * self.BLOCK.expansion
+        self.inplanes = self.PLANES[6] #+ self.PLANES[0] * self.BLOCK.expansion
+        if self.skipconnections:
+            self.inplanes += self.PLANES[0] * self.BLOCK.expansion
         self.block7 = self._make_layer(self.BLOCK, self.PLANES[6],
                                        self.LAYERS[6], leakiness=self.leakiness)
         self.convtr7p2s2 = ME.MinkowskiConvolutionTranspose(
             self.inplanes, self.PLANES[7], kernel_size=2, stride=2, dimension=D)
         self.bntr7 = ME.MinkowskiBatchNorm(self.PLANES[7])
 
-        self.inplanes = self.PLANES[7] + self.INIT_DIM
+        self.inplanes = self.PLANES[7] #+ self.INIT_DIM
+        if self.skipconnections:
+            self.inplanes += self.INIT_DIM
         self.block8 = self._make_layer(self.BLOCK, self.PLANES[7],
                                        self.LAYERS[7], leakiness=self.leakiness)
 
@@ -111,7 +121,8 @@ class MinkUNetBase(ResNetBase):
             kernel_size=1,
             has_bias=True,
             dimension=D)
-        self.relu = ME.MinkowskiLeakyReLU(leakiness=self.leakiness, inplace=True)
+        self.relu = ME.MinkowskiLeakyReLU(negative_slope=self.leakiness)
+        self.dropout = ME.MinkowskiDropout(self.dropout_p)
 
     def forward(self, x):
         out = self.conv0p1s1(x)
@@ -148,8 +159,9 @@ class MinkUNetBase(ResNetBase):
         out = self.bntr4(out)
         out = self.relu(out)
 
-        out = ME.cat(out, out_b3p8)
-        out = self.droupout(out)
+        if self.skipconnections:
+            out = ME.cat(out, out_b3p8)
+        out = self.dropout(out)
         out = self.block5(out)
 
         # tensor_stride=4
@@ -157,8 +169,9 @@ class MinkUNetBase(ResNetBase):
         out = self.bntr5(out)
         out = self.relu(out)
 
-        out = ME.cat(out, out_b2p4)
-        out = self.droupout(out)
+        if self.skipconnections:
+            out = ME.cat(out, out_b2p4)
+        out = self.dropout(out)
         out = self.block6(out)
 
         # tensor_stride=2
@@ -166,17 +179,19 @@ class MinkUNetBase(ResNetBase):
         out = self.bntr6(out)
         out = self.relu(out)
 
-        out = ME.cat(out, out_b1p2)
-        out = self.droupout(out)
+        if self.skipconnections:
+            out = ME.cat(out, out_b1p2)
+        out = self.dropout(out)
         out = self.block7(out)
 
         # tensor_stride=1
         out = self.convtr7p2s2(out)
         out = self.bntr7(out)
         out = self.relu(out)
-
-        out = ME.cat(out, out_p1)
-        out = self.droupout(out)
+        
+        if self.skipconnections:
+            out = ME.cat(out, out_p1)
+        out = self.dropout(out)
         out = self.block8(out)
 
         return self.final(out)
