@@ -125,7 +125,7 @@ compile_args = [
     "PYTHON=" + sys.executable,  # curr python
 ]
 
-extra_compile_args = ["-Wno-deprecated-declarations", "--expt-relaxed-constexpr"]
+extra_compile_args = ["-Wno-deprecated-declarations"]
 extra_link_args = []
 libraries = ["minkowski"]
 
