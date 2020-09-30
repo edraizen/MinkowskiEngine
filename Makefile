@@ -139,7 +139,7 @@ COMMON_FLAGS += $(foreach includedir,$(INCLUDE_DIRS),-I$(includedir)) \
 	     -D_GLIBCXX_USE_CXX11_ABI=$(WITH_ABI)
 
 CXXFLAGS += -fopenmp -fPIC -fwrapv -std=c++14 $(COMMON_FLAGS) $(WARNINGS)
-NVCCFLAGS += -std=c++14 -ccbin=$(CXX) -Xcompiler -fPIC $(COMMON_FLAGS)
+NVCCFLAGS += -std=c++14 -ccbin=$(CXX) -Xcompiler -fPIC --expt-relaxed-constexpr $(COMMON_FLAGS)
 LINKFLAGS += -pthread -fPIC $(WARNINGS) -Wl,-rpath=$(PYTHON_LIB_DIR) -Wl,--no-as-needed -Wl,--sysroot=/
 LDFLAGS += $(foreach librarydir,$(LIBRARY_DIRS),-L$(librarydir)) \
 	   $(foreach library,$(LIBRARIES),-l$(library))
